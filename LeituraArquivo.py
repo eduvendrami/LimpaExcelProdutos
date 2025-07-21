@@ -6,45 +6,44 @@ st.set_page_config(page_title="Limpeza de Planilha", layout="wide")
 
 arquivo = st.file_uploader("Selecione um arquivo .xls ou .xlsx", type=["xls", "xlsx"])
 
-if arquivo is not None:
-    # Detecta a extensão do arquivo
-    nome_arquivo = arquivo.name.lower()
+def ler_planilha(uploaded_file):
+    nome = uploaded_file.name.lower()
     try:
-        if nome_arquivo.endswith(".xls"):
-            df = pd.read_excel(arquivo, engine='xlrd')
-        else:
-            df = pd.read_excel(arquivo, engine='openpyxl')
-    except Exception as e:
-        st.error(f"Erro ao ler o arquivo: {e}")
-    else:
+        # Testa leitura direta com pandas (sem engine)
+        return pd.read_excel(uploaded_file)
+    except Exception as e1:
+        try:
+            # Se falhar, tenta com engine openpyxl (para .xlsx)
+            if nome.endswith('.xlsx'):
+                return pd.read_excel(uploaded_file, engine='openpyxl')
+            # Se falhar, tenta com engine xlrd (para .xls)
+            elif nome.endswith('.xls'):
+                return pd.read_excel(uploaded_file, engine='xlrd')
+        except Exception as e2:
+            st.error(f"Erro ao ler o arquivo:\n{e1}\n{e2}")
+            return None
+
+if arquivo is not None:
+    df = ler_planilha(arquivo)
+    
+    if df is not None:
         st.title("🔧 Limpeza de Planilha: Remoção de Colunas e SKUs")
 
-        # Seletor de colunas para remoção
         st.subheader("🗂️ Remover Colunas")
         colunas = st.multiselect("Selecione as colunas que deseja remover:", df.columns.tolist())
-
-        # Remove as colunas selecionadas
         df_filtrado = df.drop(columns=colunas, errors='ignore')
 
-        # Nome fixo da coluna SKU
         coluna_sku = "Código (SKU)"
-
-        # Campo para inserir SKUs para remover
         st.subheader("📦 Remover SKUs (insira separados por vírgula)")
         skus_input = st.text_input("Digite os SKUs que deseja remover:")
-
-        # Processa o input para lista
         skus_para_remover = [sku.strip() for sku in skus_input.split(",") if sku.strip()]
 
-        # Remove os SKUs indicados
         if skus_para_remover and coluna_sku in df_filtrado.columns:
             df_filtrado = df_filtrado[~df_filtrado[coluna_sku].astype(str).isin(skus_para_remover)]
 
-        # Exibe resultado
         st.subheader("✅ Resultado Final")
         st.dataframe(df_filtrado)
 
-        # Exportação para Excel
         buffer = BytesIO()
         df_filtrado.to_excel(buffer, index=False, engine='openpyxl')
         buffer.seek(0)
